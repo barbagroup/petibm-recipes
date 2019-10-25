@@ -6,6 +6,10 @@
 This repository contains Dockerfiles and Singularity recipes used to build and share images of the runtime environment required for PetIBM.
 Dockerfiles are located in the `docker` folder; Singularity recipes are in the `singularity` folder.
 
+Docker and Singularity images are available for:
+
+* PetIBM 0.4.2
+
 ## Contact
 
 Please e-mail [Olivier Mesnard](mailto:mesnardo@gwu.edu) if you have any questions, suggestions, or feedback.
