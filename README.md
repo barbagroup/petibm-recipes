@@ -3,7 +3,7 @@
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://github.com/barbagroup/petibm-recipes/raw/master/LICENSE)
 [![Docker Hub](https://img.shields.io/badge/hosted-docker--hub-informational.svg)](https://cloud.docker.com/u/barbagroup/repository/docker/barbagroup/petibm)
 
-This repository contains Dockerfiles and Singularity recipes used to build and share images of the runtime environment required for PetIBM.
+This repository contains Dockerfiles and Singularity recipes used to build and share images of the runtime environment required for [PetIBM](https://github.com/barbagroup/PetIBM).
 Dockerfiles are located in the `docker` folder; Singularity recipes are in the `singularity` folder.
 
 Docker and Singularity images are available for:
