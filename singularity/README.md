@@ -9,3 +9,11 @@ To pull the Singularity image from the collection:
 ```shell
 singularity pull --name petibm-0.4.2_xenial.sif shub://barbagroup/petibm-recipes:0.4.2-gpu-openmpi-xenial
 ```
+
+## `0.5-gpu-openmpi-xenial`
+
+To pull the Singularity image from the collection:
+
+```shell
+singularity pull --name petibm-0.5_xenial.sif shub://barbagroup/petibm-recipes:0.5-gpu-openmpi-xenial
+```
