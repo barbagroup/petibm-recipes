@@ -1,0 +1,50 @@
+# Dockerfile for PetIBM-0.5.1 for use with Batch Shipyard on Azure Batch
+
+FROM barbagroup/petibm:0.5.1-GPU-IntelMPI-xenial-devel as build
+FROM nvidia/cuda:10.1-runtime-ubuntu16.04
+MAINTAINER Olivier Mesnard <mesnardo@gwu.edu>
+
+# Install base system.
+COPY ssh_config /root/.ssh/config
+RUN apt-get update && \
+    # Infiniband/RDMA
+    apt-get install -y --no-install-recommends \
+        cpio \
+        libmlx4-1 \
+        libmlx5-1 \
+        librdmacm1 \
+        libibverbs1 \
+        libmthca1 \
+        libdapl2 \
+        dapl2-utils && \
+    # Batch-Shipyard dependencies
+    apt-get install -y --no-install-recommends \
+        openssh-server \
+        openssh-client && \
+    rm -rf /var/lib/apt/lists/* && \
+    # Configure ssh server and keys
+    mkdir /var/run/sshd && \
+    ssh-keygen -A && \
+    sed -i 's/PermitRootLogin without-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+    sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd && \
+    ssh-keygen -f /root/.ssh/id_rsa -t rsa -N '' && \
+    chmod 600 /root/.ssh/config && \
+    chmod 700 /root/.ssh && \
+    cp /root/.ssh/id_rsa.pub /root/.ssh/authorized_keys
+
+ENV INTEL_DIR=/opt/intel2
+ENV PETSC_VERSION=3.12.5
+ENV PETSC_DIR=/usr/local/petsc-${PETSC_VERSION}
+ENV AMGX_VERSION=2.1
+ENV AMGX_DIR=/usr/local/amgx-${AMGX_VERSION}
+ENV PETIBM_VERSION=0.5.1
+ENV PETIBM_DIR=/usr/local/petibm-${PETIBM_VERSION}
+ENV PATH=${PETIBM_DIR}/bin:${PATH}
+COPY --from=build ${INTEL_DIR} ${INTEL_DIR}
+COPY --from=build ${PETSC_DIR} ${PETSC_DIR}
+COPY --from=build ${AMGX_DIR} ${AMGX_DIR}
+COPY --from=build ${PETIBM_DIR} ${PETIBM_DIR}
+
+# Set sshd command.
+EXPOSE 23
+CMD ["/usr/sbin/sshd", "-D", "-p", "23"]
