@@ -9,7 +9,7 @@ Dockerfiles are located in the `docker` folder; Singularity recipes are in the `
 
 Docker and Singularity images are available for:
 
-* PetIBM (0.4.2, 0.5, 0.5.1)
+* PetIBM (0.4.2, 0.5, 0.5.1, 0.5.2)
 
 ## Contact
 

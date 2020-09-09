@@ -3,6 +3,53 @@
 The present directory contains the `Dockerfile` files used to create Docker images for PetIBM.
 Once built, the Docker images are pushed and shared on the DockerHub repository `barbagroup/petibm`.
 
+## `barbagroup/petibm:0.5.2-GPU-OpenMPI-centos7`
+
+PetIBM (0.5.2) was installed along with its dependencies:
+
+* CUDA 10.1
+* OpenMPI v4.0.5 (with Infiniband, UCX, Slurm, PMI, CUDA enabled)
+* AmgX 919fb92
+* PETSc 3.12.5
+* AmgXWrapper 1a93865
+
+The base image of this version has been changed to CentOS 7 to align with the
+CentOS/Red Hat-based clusters at many HPC centers.
+
+To build the developer-version image:
+
+```shell
+docker build --target builder --tag barbagroup/petibm:0.5.2-GPU-OpenMPI-centos7-devel --file Dockerfile-0.5.2-GPU-OpenMPI-centos7 .
+```
+
+To build the production-version image:
+
+```shell
+docker build --target production --tag barbagroup/petibm:0.5.2-GPU-OpenMPI-centos7 --file Dockerfile-0.5.2-GPU-OpenMPI-centos7 .
+```
+
+To pull the built images from DockerHub:
+
+```shell
+docker pull barbagroup/petibm:0.5.2-GPU-OpenMPI-centos7
+```
+
+or
+
+```shell
+docker pull barbagroup/petibm:0.5.2-GPU-OpenMPI-centos7-devel
+```
+
+To launch a container with the GPU support and get a Bash shell:
+
+```shell
+docker run --gpus <devices> --rm --name test -it barbagroup/petibm:0.5.2-GPU-OpenMPI-centos7 /bin/bash
+```
+For specifying the GPU devices in `--gpus` flags, see the [documentation here](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/user-guide.html#gpu-enumeration)
+
+If the `/bin/bash` in Docker's `run` command is absent, by default, the PetIBM image
+will start a SSH server daemon listening to port 23.
+
 ## `barbagroup/petibm:0.5.1-GPU-OpenMPI-xenial-devel`
 
 Image based on Ubuntu 16.04 (Xenial).
