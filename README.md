@@ -13,7 +13,5 @@ Docker and Singularity images are available for:
 
 ## Contact
 
-Please e-mail [Olivier Mesnard](mailto:mesnardo@gwu.edu) if you have any questions, suggestions, or feedback.
-
-To report bugs, please use the GitHub issue tracking system.
+To report bugs, submit questions, or offer suggestions, please use the GitHub issue tracking system.
 We also welcome pull-requests.
