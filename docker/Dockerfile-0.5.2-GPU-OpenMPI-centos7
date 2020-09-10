@@ -1,0 +1,277 @@
+# vim:ft=dockerfile
+# Packages:
+#   - CUDA 10.1
+#   - OpenMPI v4.0.5 (with Infiniband, UCX, Slurm, PMI, CUDA enabled)
+#   - AmgX 919fb92
+#   - PETSc 3.12.5
+#   - AmgXWrapper 1a93865
+#   - PetIBM v0.5.2
+
+
+# use ARGs as a hack for global variables
+ARG OMPI_SERIES="4.0"
+ARG OMPI_VERSION="4.0.5"
+ARG AMGX_VERSION="919fb92a2c02ea3d8d3d0f0660e3b507d84705bc"
+ARG PETSC_VERSION="3.12.5"
+ARG AMGXWRAPPER_VERSION="1a93865fe885b3a3530e4022aacc00845beb1177"
+ARG PETIBM_VERSION="0.5.2"
+
+# Multi-stage build stage 0: build
+# =================================
+FROM nvidia/cuda:10.1-devel-centos7 as builder
+
+# re-include the global variables
+ARG OMPI_SERIES
+ARG OMPI_VERSION
+ARG AMGX_VERSION
+ARG PETSC_VERSION
+ARG AMGXWRAPPER_VERSION
+ARG PETIBM_VERSION
+
+# installation paths
+ENV OMPI_DIR="/usr/local/openmpi-${OMPI_VERSION}" \
+    AMGX_DIR="/usr/local/amgx-${AMGX_VERSION}" \
+    PETSC_DIR="/usr/local/petsc-${PETSC_VERSION}" \
+    PETSC_ARCH="" \
+    AMGXWRAPPER_DIR="/usr/local/amgxwrapper-${AMGXWRAPPER_VERSION}" \
+    PETIBM_DIR="/usr/local/petibm-${PETIBM_VERSION}"
+
+# add paths and headers' path
+ENV PATH="${OMPI_DIR}/bin:${PATH}" CPATH="${OMPI_DIR}/include:${CPATH}"
+ENV PATH="${AMGX_DIR}/bin:${PATH}" CPATH="${AMGX_DIR}/include:${CPATH}"
+ENV PATH="${PETSC_DIR}/bin:${PATH}" CPATH="${PETSC_DIR}/include:${CPATH}"
+ENV PATH="${AMGXWRAPPER_DIR}/bin:${PATH}" CPATH="${AMGXWRAPPER_DIR}/include:${CPATH}"
+ENV PATH="${PETIBM_DIR}/bin:${PATH}" CPATH="${PETIBM_DIR}/include:${CPATH}"
+
+# install required packages
+RUN yum -y group install --setopt=tsflags=nodocs "Development Tools" \
+ && yum -y install --setopt=tsflags=nodocs wget openssl-devel \
+ && yum -y install centos-release-scl \
+ && yum -y install --setopt=tsflags=nodocs devtoolset-8 rh-python36 \
+ && yum -y install --setopt=tsflags=nodocs zlib zlib-devel \
+ && yum -y group install --setopt=tsflags=nodocs "Infiniband Support" \
+ && yum -y install --setopt=tsflags=nodocs libverbs libfabric \
+ && yum -y install --setopt=tsflags=nodocs rdma-core-devel numactl-devel libfabric-devel
+
+# newer version of cmake
+RUN source scl_source enable devtoolset-8 rh-python36 \
+ && curl -LO https://cmake.org/files/v3.18/cmake-3.18.2.tar.gz \
+ && tar xf cmake-3.18.2.tar.gz && cd cmake-3.18.2 \
+ && ./bootstrap --prefix=/usr  --parallel=6 \
+ && make -j 6 && make install \
+ && cd .. && rm -rf cmake-3.18.2 cmake-3.18.2.tar.gz
+
+# newer version of ucx
+RUN source scl_source enable devtoolset-8 rh-python36 \
+ && curl -LO https://github.com/openucx/ucx/releases/download/v1.8.1/ucx-1.8.1.tar.gz \
+ && tar xf ucx-1.8.1.tar.gz && cd ucx-1.8.1 && mkdir build && cd build \
+ && ../contrib/configure-release \
+    --prefix=/usr/local/ucx-1.8.1 \
+    --disable-doxygen-doc \
+    --with-cuda=/usr/local/cuda-10.1 \
+    --with-verbs \
+    --with-rc \
+    --with-ud \
+    --with-dc \
+    --with-mlx5-dv \
+    --with-ib-hw-tm \
+    --with-dm \
+    --with-rdmacm \
+ && make all -j && make install \
+ && cd ../.. && rm -rf ucx-1.8.1 ucx-1.8.1.tar.gz \
+ && echo "/usr/local/ucx-1.8.1/lib" > /etc/ld.so.conf.d/uxc-1.8.1.conf \
+ && echo "/usr/local/ucx-1.8.1/lib/ucx" >> /etc/ld.so.conf.d/uxc-1.8.1.conf \
+ && ldconfig
+
+# build OpenMPI
+RUN source scl_source enable devtoolset-8 rh-python36 \
+ && TARBALL=openmpi-${OMPI_VERSION}.tar.gz \
+ && curl -LO https://download.open-mpi.org/release/open-mpi/v${OMPI_SERIES}/${TARBALL} \
+ && tar xf ${TARBALL} \
+ && cd openmpi-${OMPI_VERSION} && mkdir build && cd build \
+ && ../configure \
+    --prefix=${OMPI_DIR} \
+    --with-hwloc \
+    --with-ucx=/usr/local/ucx-1.8.1 \
+    --with-ofi \
+    --with-slurm \
+    --with-pmix \
+    --with-zlib \
+    --with-cuda \
+    --with-verbs \
+    --with-verbs-libdir=/usr/lib64 \
+    --with-mpi-param-check=runtime \
+    --enable-oshmem=yes \
+    --enable-debug=no \
+    --enable-mem-debug=no \
+    --enable-mem-profile=no \
+    --enable-memchecker=no \
+    --enable-picky=no \
+    --enable-heterogeneous=no \
+    CXXFLAGS="-O3" \
+    CCASFLAGS="-O3" \
+    FCFLAGS="-O3" \
+    CFLAGS="-O3" \
+ && make all -j && make install \
+ && cd ../.. && rm -rf openmpi-${OMPI_VERSION} ${TARBALL} \
+ && echo "${OMPI_DIR}/lib" > /etc/ld.so.conf.d/openmpi-${OMPI_VERSION}.conf && ldconfig
+
+# build amgx
+RUN source scl_source enable devtoolset-8 rh-python36 \
+ && curl -L https://github.com/NVIDIA/AMGX/tarball/${AMGX_VERSION} -o amgx.tar.gz \
+ && mkdir amgx && tar -xf amgx.tar.gz -C amgx --strip-component=1 \
+ && export CC=mpicc CXX=mpicxx && mkdir amgx/build && cd amgx/build \
+ && cmake \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=${AMGX_DIR} \
+    -DCMAKE_VERBOSE_MAKEFILE=OFF  \
+    -DCUDA_ARCH="35 52 60 70" \
+    -DCMAKE_NO_MPI=OFF \
+    -DAMGX_NO_RPATH=OFF  \
+    .. \
+ && make -j 6 all && make install \
+ && cd ../.. && rm -rf amgx amgx.tar.gz \
+ && echo "${AMGX_DIR}/lib" > /etc/ld.so.conf.d/amgx-${AMGX_VERSION}.conf && ldconfig
+
+# build PETSc
+RUN source scl_source enable devtoolset-8 rh-python36 \
+ && unset PETSC_ARCH && unset PETSC_DIR \
+ && curl -L http://ftp.mcs.anl.gov/pub/petsc/release-snapshots/petsc-lite-${PETSC_VERSION}.tar.gz -o petsc.tar.gz \
+ && mkdir petsc && tar -xf petsc.tar.gz -C petsc --strip-component=1 && cd petsc \
+ && ./configure \
+    --prefix="/usr/local/petsc-${PETSC_VERSION}" \
+    --with-default-arch=0 \
+    --with-fortran-bindings=0 \
+    --with-precision=double \
+    --with-clanguage=C \
+    --with-shared-libraries=1 \
+    --with-cc=mpicc \
+    --with-cxx=mpicxx \
+    --with-fc=0 \
+    --with-pic=1 \
+    --with-cxx-dialect=C++11 \
+    --with-debugging=0 \
+    --COPTFLAGS="-O3" \
+    --CXXOPTFLAGS="-O3" \
+    --with-gcov=0 \
+    --with-mpi=1 \
+    --download-f2cblaslapack=1 \
+    --download-hypre=1 \
+    --download-superlu_dist=1 \
+    --download-hdf5=1 \
+ && make PETSC_DIR=${PWD} PETSC_ARCH=arch-linux-c-opt all \
+ && make PETSC_DIR=${PWD} PETSC_ARCH=arch-linux-c-opt install \
+ && cd .. && rm -rf petsc petsc.tar.gz \
+ && echo "${PETSC_DIR}/lib" > /etc/ld.so.conf.d/petsc-${PETSC_VERSION}.conf && ldconfig
+
+# build AmgXWrapper
+RUN source scl_source enable devtoolset-8 rh-python36 \
+ && curl -L https://github.com/barbagroup/AmgXWrapper/tarball/${AMGXWRAPPER_VERSION} -o amgxwrapper.tar.gz \
+ && mkdir amgxwrapper && tar -xf amgxwrapper.tar.gz -C amgxwrapper --strip-component=1 \
+ && cd amgxwrapper && mkdir build && cd build \
+ && export CC=mpicc && export CXX=mpicxx \
+ && cmake -DCUDA_DIR=/usr/local/cuda-10.1 -DCMAKE_INSTALL_PREFIX=${AMGXWRAPPER_DIR} .. \
+ && make all -j && make install \
+ && cd .. && mkdir build_poisson && cd build_poisson \
+ && cmake -DCUDA_DIR=/usr/local/cuda-10.1 ../example/poisson && make all -j \
+ && mkdir ${AMGXWRAPPER_DIR}/bin && cp bin/poisson ${AMGXWRAPPER_DIR}/bin \
+ && cp -r configs ${AMGXWRAPPER_DIR} \
+ && cd .. && mkdir build_solveFromFiles && cd build_solveFromFiles \
+ && cmake -DCUDA_DIR=/usr/local/cuda-10.1 ../example/solveFromFiles && make all -j \
+ && cp bin/solveFromFiles ${AMGXWRAPPER_DIR}/bin \
+ && cd ../.. && rm -rf amgxwrapper amgxwrapper.tar.gz \
+ && echo "${AMGXWRAPPER_DIR}/lib64" > /etc/ld.so.conf.d/amgxwrapper-${AMGXWRAPPER_VERSION}.conf && ldconfig
+
+# build PetIBM
+RUN source scl_source enable devtoolset-8 rh-python36 \
+ && curl -L https://github.com/barbagroup/PetIBM/tarball/v${PETIBM_VERSION} -o petibm.tar.gz \
+ && mkdir petibm && tar xf petibm.tar.gz -C petibm --strip-component=1 \
+ && cd petibm && mkdir build && cd build \
+ && ../configure \
+    CXX=mpicxx \
+    CXXFLAGS="-O2 -std=c++14" \
+    --prefix=${PETIBM_DIR} \
+    --with-petsc-dir=${PETSC_DIR} \
+    --with-petsc-arch=${PETSC_ARCH} \
+    --with-cuda-dir=/usr/local/cuda-10.1 \
+    --with-amgx-dir=${AMGX_DIR} \
+    --with-amgxwrapper-dir=${AMGXWRAPPER_DIR} \
+    --enable-yamlcpp \
+    --enable-gtest \
+ && make all -j && make check && make install \
+ && cd ../.. && rm -rf petibm petibm.tar.gz \
+ && echo "${PETIBM_DIR}/lib" > /etc/ld.so.conf.d/petibm-${PETIBM_VERSION}.conf && ldconfig
+
+
+# Multi-stage build stage 1: runtime image
+# =========================================
+FROM nvidia/cuda:10.1-runtime-centos7 as production
+LABEL maintainer="Pi-Yueh Chuang <pychuang@gwu.edu>"
+
+# re-include the global variables
+ARG OMPI_SERIES
+ARG OMPI_VERSION
+ARG AMGX_VERSION
+ARG PETSC_VERSION
+ARG AMGXWRAPPER_VERSION
+ARG PETIBM_VERSION
+
+ENV OMPI_DIR="/usr/local/openmpi-${OMPI_VERSION}" \
+    AMGX_DIR="/usr/local/amgx-${AMGX_VERSION}" \
+    PETSC_DIR="/usr/local/petsc-${PETSC_VERSION}" \
+    PETSC_ARCH="" \
+    AMGXWRAPPER_DIR="/usr/local/amgxwrapper-${AMGXWRAPPER_VERSION}" \
+    PETIBM_DIR="/usr/local/petibm-${PETIBM_VERSION}"
+
+# add paths
+ENV PATH="${OMPI_DIR}/bin:${PATH}"
+ENV PATH="${AMGX_DIR}/bin:${PATH}"
+ENV PATH="${PETSC_DIR}/bin:${PATH}"
+ENV PATH="${AMGXWRAPPER_DIR}/bin:${PATH}"
+ENV PATH="${PETIBM_DIR}/bin:${PATH}"
+
+# install required packages and settings
+RUN localedef -c -i en_US -f UTF-8 en_US.UTF-8 \
+ && ln -snf /usr/share/zoneinfo/UTC /etc/localtime \
+ && echo UTC > /etc/timezone \
+ && yum -y install --setopt=tsflags=nodocs zlib libquadmath \
+ && yum -y group install --setopt=tsflags=nodocs "Infiniband Support" \
+ && yum -y install --setopt=tsflags=nodocs libverbs libfabric \
+ && yum -y install --setopt=tsflags=nodocs openssh-clients openssh-server \
+ && yum -y clean all
+
+# copy installed programs
+COPY --from=builder /usr/local/ucx-1.8.1 /usr/local/ucx-1.8.1
+COPY --from=builder ${OMPI_DIR} ${OMPI_DIR}
+COPY --from=builder ${AMGX_DIR} ${AMGX_DIR}
+COPY --from=builder ${PETSC_DIR} ${PETSC_DIR}
+COPY --from=builder ${AMGXWRAPPER_DIR} ${AMGXWRAPPER_DIR}
+COPY --from=builder ${PETIBM_DIR} ${PETIBM_DIR}
+
+# ldconfig
+RUN echo "/usr/local/ucx-1.8.1/lib" > /etc/ld.so.conf.d/uxc-1.8.1.conf \
+ && echo "/usr/local/ucx-1.8.1/lib/ucx" >> /etc/ld.so.conf.d/uxc-1.8.1.conf \
+ && echo "${OMPI_DIR}/lib" > /etc/ld.so.conf.d/openmpi-${OMPI_VERSION}.conf \
+ && echo "${AMGX_DIR}/lib" > /etc/ld.so.conf.d/amgx-${AMGX_VERSION}.conf \
+ && echo "${PETSC_DIR}/lib" > /etc/ld.so.conf.d/petsc-${PETSC_VERSION}.conf \
+ && echo "${AMGXWRAPPER_DIR}/lib64" > /etc/ld.so.conf.d/amgxwrapper-${AMGXWRAPPER_VERSION}.conf \
+ && echo "${PETIBM_DIR}/lib64" > /etc/ld.so.conf.d/petibm-${PETIBM_VERSION}.conf \
+ && ldconfig
+
+# set up ssh for root for MPI applications
+RUN mkdir /var/run/sshd \
+ && ssh-keygen -A \
+ && sed -i "s/#PermitRootLogin\ yes/PermitRootLogin\ yes/" /etc/ssh/sshd_config \
+ && sed -i "s/session\s*required\s*pam_loginuid.so/session\ optional\ pam_loginuid.so/g" /etc/pam.d/sshd \
+ && ssh-keygen -f /root/.ssh/id_rsa -t rsa -N '' \
+ && echo "Host 10.*" > /root/.ssh/config \
+ && echo "  Port 23" >> /root/.ssh/config \
+ && echo "  StrictHostKeyChecking no" >> /root/.ssh/config \
+ && echo "  UserKnownHostsFile /dev/null" >> /root/.ssh/config \
+ && chmod 600 /root/.ssh/config && chmod 700 /root/.ssh \
+ && cp /root/.ssh/id_rsa.pub /root/.ssh/authorized_keys
+
+# using port 23 for Azure cloud, see
+# https://batch-shipyard.readthedocs.io/en/3.0.1/80-batch-shipyard-multi-instance-tasks
+EXPOSE 23
+CMD ["/usr/sbin/sshd", "-D", "-p", "23"]
