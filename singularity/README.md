@@ -2,6 +2,10 @@
 
 The present directory contains the Singularity recipes used to create Singularity images for PetIBM on [Singularity Hub](https://singularity-hub.org/) (in [this collection](https://singularity-hub.org/collections/3692)).
 
+## `0.5.3-gpu-openmpi-focal`
+
+Not added to the collection as Singularity Hub has been Archived.
+
 ## `0.5.2-gpu-openmpi-centos7`
 
 To pull the Singularity image from the collection:

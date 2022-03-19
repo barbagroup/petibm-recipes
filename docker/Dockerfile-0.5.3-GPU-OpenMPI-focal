@@ -1,0 +1,46 @@
+# Dockerfile for PetIBM-0.5.3
+
+FROM barbagroup/petibm:0.5.3-GPU-OpenMPI-focal-devel as build
+FROM nvidia/cuda:11.6.0-runtime-ubuntu20.04
+MAINTAINER Olivier Mesnard <mesnardo@gwu.edu>
+
+COPY ssh_config /root/.ssh/config
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        gfortran g++ && \
+    apt-get install -y --no-install-recommends \
+        libibverbs1 libibverbs-dev ibverbs-utils librdmacm1 rdmacm-utils \
+        ibutils ibacm libibmad5 libibumad3 opensm libopensm8 \
+        srptools perftest infiniband-diags ibsim-utils \
+        libmthca1 libmlx4-1 libmlx5-1 mstflint \
+        libdapl2 dapl2-utils && \
+    apt-get install -y --no-install-recommends \
+        openssh-server \
+        openssh-client && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
+    mkdir /var/run/sshd && \
+    ssh-keygen -A && \
+    sed -i 's/PermitRootLogin without-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
+    sed 's@session\s*required\s*pam_loginuid.so@session optional pam_loginuid.so@g' -i /etc/pam.d/sshd && \
+    ssh-keygen -f /root/.ssh/id_rsa -t rsa -N '' && \
+    chmod 600 /root/.ssh/config && \
+    chmod 700 /root/.ssh && \
+    cp /root/.ssh/id_rsa.pub /root/.ssh/authorized_keys
+
+ENV OMPI_VERSION=3.1.4
+ENV OMPI_DIR=/usr/local/openmpi-${OMPI_VERSION}
+ENV PETSC_VERSION=3.16.5
+ENV PETSC_DIR=/usr/local/petsc-${PETSC_VERSION}
+ENV AMGX_VERSION=2.2.0
+ENV AMGX_DIR=/usr/local/amgx-${AMGX_VERSION}
+ENV PETIBM_VERSION=0.5.3
+ENV PETIBM_DIR=/usr/local/petibm-${PETIBM_VERSION}
+ENV PATH=${PETIBM_DIR}/bin:${OMPI_DIR}/bin:${PATH}
+COPY --from=build ${OMPI_DIR} ${OMPI_DIR}
+COPY --from=build ${PETSC_DIR} ${PETSC_DIR}
+COPY --from=build ${AMGX_DIR} ${AMGX_DIR}
+COPY --from=build ${PETIBM_DIR} ${PETIBM_DIR}
+
+EXPOSE 23
+CMD ["/usr/sbin/sshd", "-D", "-p", "23"]

@@ -3,6 +3,67 @@
 The present directory contains the `Dockerfile` files used to create Docker images for PetIBM.
 Once built, the Docker images are pushed and shared on the DockerHub repository `barbagroup/petibm`.
 
+## `barbagroup/petibm:0.5.3-GPU-OpenMPI-focal-devel`
+
+Image based on Ubuntu 20.04 (Focal).
+To pull the image from DockerHub:
+
+```shell
+docker pull barbagroup/petibm:0.5.3-GPU-OpenMPI-focal-devel
+```
+
+PetIBM (0.5.3) was installed along with its dependencies:
+
+* CUDA Toolkit 11.6 (requires CUDA Driver Version >= 418.39)
+* OpenMPI 3.1.4
+* PETSc 3.16.5
+* AmgX 2.2.0
+
+To launch a container:
+
+```shell
+docker run -it barbagroup/petibm:0.5.3-GPU-OpenMPI-focal-devel /bin/bash
+```
+
+To launch a container with the GPU support:
+
+```shell
+docker run --gpus <devices> -it barbagroup/petibm:0.5.3-GPU-OpenMPI-focal-devel /bin/bash
+```
+
+(More details on how to specify `<devices>` can be found [here](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/user-guide.html#gpu-enumeration).)
+
+To re-build the image:
+
+```shell
+docker build --tag=<your-tag> --file=Dockerfile-0.5.3-GPU-OpenMPI-focal-devel .
+```
+
+## `barbagroup/petibm:0.5.3-GPU-OpenMPI-focal`
+
+This image is the same as `barbagroup/petibm:0.5.3-GPU-OpenMPI-focal-devel`, except it does not contain the source files and build directories.
+This is intended to make the Docker image as light as possible.
+
+To pull the image from DockerHub:
+
+```shell
+docker pull barbagroup/petibm:0.5.3-GPU-OpenMPI-focal
+```
+
+To launch a container:
+
+```shell
+docker run -it barbagroup/petibm:0.5.3-GPU-OpenMPI-focal /bin/bash
+```
+
+To launch a container with the GPU support:
+
+```shell
+docker run --gpus <devices> -it barbagroup/petibm:0.5.3-GPU-OpenMPI-focal /bin/bash
+```
+
+(More details on how to specify `<devices>` can be found [here](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/user-guide.html#gpu-enumeration).)
+
 ## `barbagroup/petibm:0.5.2-GPU-OpenMPI-centos7`
 
 PetIBM (0.5.2) was installed along with its dependencies:
