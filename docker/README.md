@@ -3,6 +3,43 @@
 The present directory contains the `Dockerfile` files used to create Docker images for PetIBM.
 Once built, the Docker images are pushed and shared on the DockerHub repository `barbagroup/petibm`.
 
+## `barbagroup/petibm:0.5.4-hpcx207-cuda102`
+
+To use this image, pull it from DockerHub through command-line `docker pull barbagroup/petibm:0.5.4-hpcx207-cuda102`
+
+PetIBM (0.5.4) was installed along with its dependencies:
+
+* CUDA 10.2
+* OpenMPI v4.0.4rc3 (through NVIDIA's HPC-X v2.07)
+* AmgX 6f1401
+* PETSc 3.16.6
+* AmgXWrapper 1.6.2
+
+The base image of this version is Ubuntu Bionic.
+
+Alternative to the image on DockerHub, users can build the image locally.
+The Docker file corresponding to this image is `Dockerfile-0.5.4-HPCX207-CUDA102-bionic`.
+
+1. To build the developer-version image:
+
+```shell
+docker build --target builder --tag barbagroup/petibm:petibm:0.5.4-hpcx207-cuda102-dev --file Dockerfile-0.5.4-HPCX207-CUDA102-bionic .
+```
+
+2. To build the production-version image:
+
+```shell
+docker build --target production --tag barbagroup/petibm:petibm:0.5.4-hpcx207-cuda102 --file Dockerfile-0.5.4-HPCX207-CUDA102-bionic .
+```
+
+To launch a container with the GPU support and get a Bash shell:
+
+```shell
+docker run --gpus <devices> --rm --name test -it barbagroup/petibm:petibm:0.5.4-hpcx207-cuda102 /bin/bash
+```
+
+If the `/bin/bash` in Docker's `run` command is absent, by default, the PetIBM image will start a SSH server daemon listening to port 23.
+
 ## `barbagroup/petibm:0.5.3-GPU-OpenMPI-focal-devel`
 
 Image based on Ubuntu 20.04 (Focal).
